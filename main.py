@@ -1,7 +1,4 @@
-import time
-
 import matplotlib.pyplot as plt
-
 from vds6102a import Vds6102a
 
 
