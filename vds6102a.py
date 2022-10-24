@@ -2,14 +2,13 @@ import time
 import numpy as np
 import pyvisa
 import sys
-
 import dictionaries as dicts_
 
 
 class Vds6102a:
     def __init__(self):
         self.vds = self._finder()
-        self.vds.timeout = 3000 #ms
+        self.vds.timeout = 2000 #ms
         self.npoints = self.get_depmem()
         self.timebase = self.get_timebase()
         print(self.get_IDN())
@@ -22,23 +21,23 @@ class Vds6102a:
         self.set_ch_offset(1, 0)
         self.set_ch_offset(2, 0)
         self.set_depmem('1K')
-        time.sleep(3)
+        time.sleep(2)
 
-    def begin_ch(self, chanel):
-        self._write(f':WAV:BEG CH{chanel}')
+    def begin_ch(self, channel):
+        self._write(f':WAV:BEG CH{channel}')
 
-    def set_ch_scale(self, chanel, mV):
+    def set_ch_scale(self, channel, mV):
         if mV < 1000:
-            self._write(f':CH{chanel}:SCAL {mV}mV')
+            self._write(f':CH{channel}:SCAL {mV}mV')
         else:
-            self._write(f':CH{chanel}:SCAL {mV/1000}V')
+            self._write(f':CH{channel}:SCAL {mV / 1000}V')
 
     def set_timebase(self, timebase):
         self._write(f':HORI:SCAL {timebase}')
         self.timebase = self.get_timebase()
 
-    def set_ch_offset(self, ch, off):
-        self._write(f':CH{ch}:OFFSet {off}')
+    def set_ch_offset(self, channel, off):
+        self._write(f':CH{channel}:OFFSet {off}')
 
     def set_depmem(self, dep_str):
         self._write(f':ACQ:DEPMEM {dep_str}')
@@ -56,20 +55,20 @@ class Vds6102a:
     def get_IDN(self):
         return self._query('*IDN?')
 
-    def get_ch_bwlimit(self, chanel):
-        return self._query(f':CH{chanel}:BAND?')
+    def get_ch_bwlimit(self, channel):
+        return self._query(f':CH{channel}:BAND?')
 
-    def get_ch_coupling(self, chanel):
-        return self._query(f':CH{chanel}:COUP?')
+    def get_ch_coupling(self, channel):
+        return self._query(f':CH{channel}:COUP?')
 
-    def get_ch_scale(self, chanel):
-        return dicts_.V_scale[self._query(f':CH{chanel}:SCAL?').split()[0]]
+    def get_ch_scale(self, channel):
+        return dicts_.V_scale[self._query(f':CH{channel}:SCAL?').split()[0]]
 
-    def get_ch_display(self, chanel):
-        return self._query(f':CH{chanel}:DISP?')
+    def get_ch_display(self, channel):
+        return self._query(f':CH{channel}:DISP?')
 
-    def get_ch_offset(self, chanel):
-        return self._query(f':CH{chanel}:OFFS?')
+    def get_ch_offset(self, channel):
+        return self._query(f':CH{channel}:OFFS?')
 
     def run(self):
         self._write(':RUN')
@@ -80,17 +79,19 @@ class Vds6102a:
     def get_timedata(self):
         return np.linspace(0, self._time_len(), self.npoints)
 
-    def get_ch_data(self, chanel):
+    def get_ch_data(self, channel):
         t_sleep = self._time_len()
-        self._write(f':WAV:BEG CH{chanel}')
+        self._write(f':WAV:BEG CH{channel}')
         self._write(':WAV:PRE?')
         self._write(f':WAV:RANG 0,{self.npoints}')
         time.sleep(t_sleep)
         self._write(':WAV:FETC?')
-
         dt = np.dtype([('header', np.int8, 11), ('data', np.int16, self.npoints)])
         result = np.frombuffer(self.vds.read_raw(), dtype=dt)['data'][0]
-        return self._convert_data(result, chanel)
+        return self._convert_data(result, channel)
+
+    def get_waveform(self, channel):
+        return self.get_timedata(), self.get_ch_data(channel)
 
     def _time_len(self):
         self.timebase = self.get_timebase()

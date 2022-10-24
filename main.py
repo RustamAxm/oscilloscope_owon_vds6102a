@@ -25,8 +25,8 @@ def demo():
           osc.get_ch_offset(2))
 
     osc.run()
-    data1 = osc.get_ch_data(1)
-    data2 = osc.get_ch_data(2)
+    x, data1 = osc.get_waveform(1)
+    x, data2 = osc.get_waveform(2)
     osc.stop()
     x = osc.get_timedata()
 
