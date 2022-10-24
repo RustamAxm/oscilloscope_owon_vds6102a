@@ -6,15 +6,23 @@ import sys
 import dictionaries as dicts_
 
 
-class vds6102a:
+class Vds6102a:
     def __init__(self):
         self.vds = self._finder()
         self.vds.timeout = 3000 #ms
         self.npoints = self.get_depmem()
         self.timebase = self.get_timebase()
-        print(self.npoints)
         print(self.get_IDN())
-        print(self.timebase)
+        self.set_default()
+
+    def set_default(self):
+        self.set_ch_scale(1, 200)
+        self.set_ch_scale(2, 200)
+        self.set_timebase('100us')
+        self.set_ch_offset(1, 0)
+        self.set_ch_offset(2, 0)
+        self.set_depmem('1K')
+        time.sleep(3)
 
     def begin_ch(self, chanel):
         self._write(f':WAV:BEG CH{chanel}')
@@ -55,19 +63,13 @@ class vds6102a:
         return self._query(f':CH{chanel}:COUP?')
 
     def get_ch_scale(self, chanel):
-        return dicts_.Vscale[self._query(f':CH{chanel}:SCAL?').split()[0]]
+        return dicts_.V_scale[self._query(f':CH{chanel}:SCAL?').split()[0]]
 
     def get_ch_display(self, chanel):
         return self._query(f':CH{chanel}:DISP?')
 
     def get_ch_offset(self, chanel):
         return self._query(f':CH{chanel}:OFFS?')
-
-    def query_str(self, str_):
-        return self._query(str_)
-
-    def write_str(self, str_):
-        self._write(str_)
 
     def run(self):
         self._write(':RUN')
@@ -76,10 +78,10 @@ class vds6102a:
         self._write(':WAV:END')
 
     def get_timedata(self):
-        return np.linspace(0, self._timelen(), self.npoints)
+        return np.linspace(0, self._time_len(), self.npoints)
 
     def get_ch_data(self, chanel):
-        t_sleep = self._timelen()
+        t_sleep = self._time_len()
         self._write(f':WAV:BEG CH{chanel}')
         self._write(':WAV:PRE?')
         self._write(f':WAV:RANG 0,{self.npoints}')
@@ -90,12 +92,11 @@ class vds6102a:
         result = np.frombuffer(self.vds.read_raw(), dtype=dt)['data'][0]
         return self._convert_data(result, chanel)
 
-    def _timelen(self):
+    def _time_len(self):
         self.timebase = self.get_timebase()
         return self.npoints * self.timebase
 
     def _convert_data(self, data, chanel):
-        print(self.get_ch_scale(chanel))
         return data / 6400 * self.get_ch_scale(chanel)
 
     def _query(self, str_):
