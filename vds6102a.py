@@ -6,8 +6,12 @@ import dictionaries as dicts_
 
 
 class Vds6102a:
-    def __init__(self):
+    def __init__(self, ip=''):
+        self.ip_ = ip
         self.vds = self._finder()
+        self.vds.read_termination = '\n'
+        self.vds.write_termination = '\n'
+
         self.vds.timeout = 2000 #ms
         self.npoints = self.get_depmem()
         self.timebase = self.get_timebase()
@@ -86,9 +90,41 @@ class Vds6102a:
         self._write(f':WAV:RANG 0,{self.npoints}')
         time.sleep(t_sleep)
         self._write(':WAV:FETC?')
+        data = self.vds.read_raw()
         dt = np.dtype([('header', np.int8, 11), ('data', np.int16, self.npoints)])
-        result = np.frombuffer(self.vds.read_raw(), dtype=dt)['data'][0]
+        result = np.frombuffer(data, dtype=dt)['data'][0]
         return self._convert_data(result, channel)
+
+    def print_lan_info(self):
+        print(self._query(':LAN:DEV?'))
+        print(self._query(':LAN:PROT?'))
+        print(self._query(':LAN:IPAD?'))
+        print(self._query(':LAN:GAT?'))
+        print(self._write(':LAN:MASK?'))
+        print(self._query(':LAN:DNS?'))
+        print(self._query(':LAN:MAC?'))
+
+    def set_lan_dhcp(self):
+        if self.ip_:
+            print('To set LAN settings use USB connection')
+        else:
+            try:
+                self._write(':LAN:PROT DHCP')
+                time.sleep(5)
+                self.print_lan_info()
+            except pyvisa.errors.VisaIOError:
+                print('Device should be connected to a network with DHCP')
+
+    def set_lan_static(self, gateway, ip):
+        if self.ip_:
+            print('To set LAN settings use USB connection')
+        else:
+            self._write(':LAN:PROT STATIC')
+            self._write(f':LAN:IPAD {ip}')
+            self._write(f':LAN:GAT {gateway}')
+            self._write(f':LAN:DNS {gateway}')
+            time.sleep(5)
+            self.print_lan_info()
 
     def get_waveform(self, channel):
         return self.get_timedata(), self.get_ch_data(channel)
@@ -106,12 +142,22 @@ class Vds6102a:
     def _write(self, str_):
         self.vds.write(str_)
 
-    @staticmethod
-    def _finder():
+    def _finder(self):
         rm = pyvisa.ResourceManager('@py')
         list_rm = rm.list_resources('?*')
+
+        if self.ip_:
+            try:
+                print(f'connecting to IP {self.ip_}')
+                return rm.open_resource(f'TCPIP::{self.ip_}::INSTR')
+            except:
+                print('device not found')
+                sys.exit(1)
+
         if not list_rm:
+            print('resource list is empty')
             sys.exit(1)
+
         print(list_rm)
 
         for instr in list_rm:

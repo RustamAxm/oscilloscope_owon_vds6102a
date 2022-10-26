@@ -3,7 +3,10 @@ from vds6102a import Vds6102a
 
 
 def demo():
-    osc = Vds6102a()
+    osc = Vds6102a('172.17.15.115')
+    # osc.set_lan_static(ip='192.168.10.3', gateway='192.168.10.1')
+    # or
+    osc.set_lan_dhcp()
 
     print(osc.get_timebase(),
           osc.get_acq_mode(),
@@ -25,13 +28,13 @@ def demo():
     x, data1 = osc.get_waveform(1)
     x, data2 = osc.get_waveform(2)
     osc.stop()
-    x = osc.get_timedata()
 
     plt.figure()
-    plt.plot(x, data1)
-    plt.plot(x, data2)
+    plt.plot(x, data1, label='channel 1')
+    plt.plot(x, data2, label='channel 2')
     plt.xlabel('Time(s)')
     plt.ylabel('Voltage(V)')
+    plt.legend()
     plt.show()
 
 

@@ -12,7 +12,7 @@ timebase_vals = dict(zip(key_timebase, timebase_vals))
 vals_timebase = dict(zip(timebase_vals, key_timebase))
 
 key_V_scale = ['2.00mV', '5.00mV', '10.0mV', '20.0mV', '50.0mV',
-              '100mV', '200mV', '500mV', '1.00V', '2.00V', '5.00V']
+               '100mV', '200mV', '500mV', '1.00V', '2.00V', '5.00V']
 V_scale_vals = [2e-3, 5e-3, 10e-3, 20e-3, 50e-3, 100e-3, 200e-3, 500e-3, 1, 2, 5]
 V_scale = dict(zip(key_V_scale, V_scale_vals))
 
