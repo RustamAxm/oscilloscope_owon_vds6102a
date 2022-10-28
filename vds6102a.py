@@ -47,6 +47,9 @@ class Vds6102a:
         self._write(f':ACQ:DEPMEM {dep_str}')
         self.npoints = self.get_depmem()
 
+    def set_ch_coupling(self, channel, coupling='AC'):
+        return self._write(f':CH{channel}:COUP {coupling}')
+
     def get_timebase(self):
         return dicts_.timebase_vals[self._query(':HORI:SCAL?').split()[0]]
 

@@ -3,10 +3,11 @@ from vds6102a import Vds6102a
 
 
 def demo():
-    osc = Vds6102a('172.17.15.115')
+    osc = Vds6102a('172.17.182.82')
     # osc.set_lan_static(ip='192.168.10.3', gateway='192.168.10.1')
     # or
     osc.set_lan_dhcp()
+    osc.set_ch_coupling(1, coupling='AC')
 
     print(osc.get_timebase(),
           osc.get_acq_mode(),
