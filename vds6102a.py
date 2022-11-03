@@ -3,19 +3,17 @@ import numpy as np
 import pyvisa
 import sys
 import dictionaries as dicts_
+import socketscpi_patch as socket
 
 
 class Vds6102a:
-    def __init__(self, ip=''):
+    def __init__(self, ip='', pyvisa_bool=False):
         self.ip_ = ip
+        self.pyvisa_bool = pyvisa_bool
         self.vds = self._finder()
-        self.vds.read_termination = '\n'
-        self.vds.write_termination = '\n'
-
-        self.vds.timeout = 2000 #ms
         self.npoints = self.get_depmem()
         self.timebase = self.get_timebase()
-        print(self.get_IDN())
+
         self.set_default()
 
     def set_default(self):
@@ -31,10 +29,15 @@ class Vds6102a:
         self._write(f':WAV:BEG CH{channel}')
 
     def set_ch_scale(self, channel, mV):
+        '''should be from dict data'''
         if mV < 1000:
             self._write(f':CH{channel}:SCAL {mV}mV')
         else:
             self._write(f':CH{channel}:SCAL {mV / 1000}V')
+
+        if abs(self.get_ch_scale(channel) - mV / 1000) > 0.01:
+            print(f'ch scale setting error {abs(self.get_ch_scale(channel) - mV / 1000)}', file=sys.stderr)
+            sys.exit(1)
 
     def set_timebase(self, timebase):
         self._write(f':HORI:SCAL {timebase}')
@@ -75,7 +78,7 @@ class Vds6102a:
         return self._query(f':CH{channel}:DISP?')
 
     def get_ch_offset(self, channel):
-        return self._query(f':CH{channel}:OFFS?')
+        return float(self._query(f':CH{channel}:OFFS?'))
 
     def run(self):
         self._write(':RUN')
@@ -88,15 +91,21 @@ class Vds6102a:
 
     def get_ch_data(self, channel):
         t_sleep = self._time_len()
+        offset = self.get_ch_offset(channel)
+        scale = self.get_ch_scale(channel)
         self._write(f':WAV:BEG CH{channel}')
-        self._write(':WAV:PRE?')
         self._write(f':WAV:RANG 0,{self.npoints}')
         time.sleep(t_sleep)
-        self._write(':WAV:FETC?')
-        data = self.vds.read_raw()
-        dt = np.dtype([('header', np.int8, 11), ('data', np.int16, self.npoints)])
-        result = np.frombuffer(data, dtype=dt)['data'][0]
-        return self._convert_data(result, channel)
+        if self.pyvisa_bool:
+            self._write(':WAV:FETC?')
+            data = self.vds.read_raw()
+            dt = np.dtype([('header', np.int8, 11), ('data', np.int16, self.npoints)])
+            result = np.frombuffer(data, dtype=dt)['data'][0]
+        else:
+            data = self.vds.query_binary_values(':WAV:FETC?', debug=False, datatype='b')
+            result = np.frombuffer(data, dtype=np.int16)
+
+        return self._convert_data(result, offset, scale)
 
     def print_lan_info(self):
         print(self._query(':LAN:DEV?'))
@@ -136,9 +145,6 @@ class Vds6102a:
         self.timebase = self.get_timebase()
         return self.npoints * self.timebase
 
-    def _convert_data(self, data, chanel):
-        return data / 6400 * self.get_ch_scale(chanel)
-
     def _query(self, str_):
         return self.vds.query(str_)
 
@@ -146,28 +152,44 @@ class Vds6102a:
         self.vds.write(str_)
 
     def _finder(self):
+        if self.pyvisa_bool:
+            return self._pyvisa_connection()
+        else:
+            return socket.SocketInstrument(self.ip_, port=8866, timeout=2)
+
+    def _pyvisa_connection(self):
         rm = pyvisa.ResourceManager('@py')
-        list_rm = rm.list_resources('?*')
 
         if self.ip_:
             try:
                 print(f'connecting to IP {self.ip_}')
-                return rm.open_resource(f'TCPIP::{self.ip_}::INSTR')
+                vds = rm.open_resource(f'TCPIP::{self.ip_}::INSTR')
+                vds.read_termination = '\n'
+                vds.write_termination = '\n'
+                vds.timeout = 2000  # ms
+                return vds
             except:
                 print('device not found')
                 sys.exit(1)
 
+        list_rm = rm.list_resources('?*')
         if not list_rm:
             print('resource list is empty')
             sys.exit(1)
-
-        print(list_rm)
 
         for instr in list_rm:
             if '4661' in instr:
                 print('found device {}'.format(instr))
                 try:
-                    return rm.open_resource(instr)
+                    vds = rm.open_resource(instr)
+                    vds.read_termination = '\n'
+                    vds.write_termination = '\n'
+                    vds.timeout = 2000  # ms
+                    return vds
                 except ValueError:
                     print('device not found')
                     sys.exit(1)
+
+    @staticmethod
+    def _convert_data(data, offset, scale):
+        return (data / 6400 - offset) * scale
