@@ -4,10 +4,14 @@ import pyvisa
 import sys
 import dictionaries as dicts_
 import socketscpi_patch as socket
+import logging
+from logging_helper import set_logging
 
+logger = logging.getLogger('owon_vds6102a')
 
 class Vds6102a:
     def __init__(self, ip='', pyvisa_bool=False):
+        set_logging(logger)
         self.ip_ = ip
         self.pyvisa_bool = pyvisa_bool
         self.vds = self._finder()
@@ -36,7 +40,7 @@ class Vds6102a:
             self._write(f':CH{channel}:SCAL {mV / 1000}V')
 
         if abs(self.get_ch_scale(channel) - mV / 1000) > 0.01:
-            print(f'ch scale setting error {abs(self.get_ch_scale(channel) - mV / 1000)}', file=sys.stderr)
+            logger.error(f'ch scale setting error {abs(self.get_ch_scale(channel) - mV / 1000)}')
             sys.exit(1)
 
     def set_timebase(self, timebase):
@@ -108,28 +112,28 @@ class Vds6102a:
         return self._convert_data(result, offset, scale)
 
     def print_lan_info(self):
-        print(self._query(':LAN:DEV?'))
-        print(self._query(':LAN:PROT?'))
-        print(self._query(':LAN:IPAD?'))
-        print(self._query(':LAN:GAT?'))
-        print(self._write(':LAN:MASK?'))
-        print(self._query(':LAN:DNS?'))
-        print(self._query(':LAN:MAC?'))
+        logger.info(self._query(':LAN:DEV?'))
+        logger.info(self._query(':LAN:PROT?'))
+        logger.info(self._query(':LAN:IPAD?'))
+        logger.info(self._query(':LAN:GAT?'))
+        logger.info(self._write(':LAN:MASK?'))
+        logger.info(self._query(':LAN:DNS?'))
+        logger.info(self._query(':LAN:MAC?'))
 
     def set_lan_dhcp(self):
         if self.ip_:
-            print('To set LAN settings use USB connection')
+            logger.warning('To set LAN settings use USB connection')
         else:
             try:
                 self._write(':LAN:PROT DHCP')
                 time.sleep(5)
                 self.print_lan_info()
             except pyvisa.errors.VisaIOError:
-                print('Device should be connected to a network with DHCP')
+                logger.warning('Device should be connected to a network with DHCP')
 
     def set_lan_static(self, gateway, ip):
         if self.ip_:
-            print('To set LAN settings use USB connection')
+            logger.warning('To set LAN settings use USB connection')
         else:
             self._write(':LAN:PROT STATIC')
             self._write(f':LAN:IPAD {ip}')
@@ -162,24 +166,24 @@ class Vds6102a:
 
         if self.ip_:
             try:
-                print(f'connecting to IP {self.ip_}')
+                logger.info(f'connecting to IP {self.ip_}')
                 vds = rm.open_resource(f'TCPIP::{self.ip_}::INSTR')
                 vds.read_termination = '\n'
                 vds.write_termination = '\n'
                 vds.timeout = 2000  # ms
                 return vds
             except:
-                print('device not found')
+                logger.error('device not found')
                 sys.exit(1)
 
         list_rm = rm.list_resources('?*')
         if not list_rm:
-            print('resource list is empty')
+            logger.error('resource list is empty')
             sys.exit(1)
 
         for instr in list_rm:
             if '4661' in instr:
-                print('found device {}'.format(instr))
+                logger.info('found device {}'.format(instr))
                 try:
                     vds = rm.open_resource(instr)
                     vds.read_termination = '\n'
@@ -187,7 +191,7 @@ class Vds6102a:
                     vds.timeout = 2000  # ms
                     return vds
                 except ValueError:
-                    print('device not found')
+                    logger.error('device not found')
                     sys.exit(1)
 
     @staticmethod

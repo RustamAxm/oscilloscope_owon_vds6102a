@@ -6,12 +6,12 @@ from vds6102a import Vds6102a
 
 
 def demo():
-    osc = Vds6102a(ip='172.17.182.82', pyvisa_bool=False)
+    osc = Vds6102a(ip='172.17.27.17', pyvisa_bool=False)
     # osc.set_lan_static(ip='192.168.10.3', gateway='192.168.10.1')
     # or
     osc.set_lan_dhcp()
     osc.set_default()
-    osc.set_ch_coupling(1, coupling='DC')
+    osc.set_ch_coupling(1, coupling='AC')
     osc.set_ch_coupling(2, coupling='AC')
     osc.set_ch_scale(1, 5000)
     osc.set_ch_scale(2, 200)
