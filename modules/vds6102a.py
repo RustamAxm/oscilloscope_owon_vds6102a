@@ -1,23 +1,20 @@
 import time
 import numpy as np
-import pyvisa
 import sys
-import dictionaries as dicts_
-import socketscpi_patch as socket
+import modules.dictionaries as dicts_
 import logging
-from logging_helper import set_logging
+from modules.logging_helper import set_logging
 
 logger = logging.getLogger('owon_vds6102a')
 
+
 class Vds6102a:
-    def __init__(self, ip='', pyvisa_bool=False):
+    def __init__(self, vds=0):
         set_logging(logger)
-        self.ip_ = ip
-        self.pyvisa_bool = pyvisa_bool
-        self.vds = self._finder()
+        self.vds = vds
+        logger.info(self.get_IDN())
         self.npoints = self.get_depmem()
         self.timebase = self.get_timebase()
-
         self.set_default()
 
     def set_default(self):
@@ -93,23 +90,20 @@ class Vds6102a:
     def get_timedata(self):
         return np.linspace(0, self._time_len(), self.npoints)
 
+    def _get_ch_buffer(self):
+        return None
+
     def get_ch_data(self, channel):
         t_sleep = self._time_len()
         offset = self.get_ch_offset(channel)
         scale = self.get_ch_scale(channel)
-        self._write(f':WAV:BEG CH{channel}')
-        self._write(f':WAV:RANG 0,{self.npoints}')
+        self._setup_ch_data(channel)
         time.sleep(t_sleep)
-        if self.pyvisa_bool:
-            self._write(':WAV:FETC?')
-            data = self.vds.read_raw()
-            dt = np.dtype([('header', np.int8, 11), ('data', np.int16, self.npoints)])
-            result = np.frombuffer(data, dtype=dt)['data'][0]
-        else:
-            data = self.vds.query_binary_values(':WAV:FETC?', debug=False, datatype='b')
-            result = np.frombuffer(data, dtype=np.int16)
-
+        result = self._get_ch_buffer()
         return self._convert_data(result, offset, scale)
+
+    def get_waveform(self, channel):
+        return self.get_timedata(), self.get_ch_data(channel)
 
     def print_lan_info(self):
         logger.info(self._query(':LAN:DEV?'))
@@ -121,29 +115,27 @@ class Vds6102a:
         logger.info(self._query(':LAN:MAC?'))
 
     def set_lan_dhcp(self):
-        if self.ip_:
-            logger.warning('To set LAN settings use USB connection')
-        else:
-            try:
-                self._write(':LAN:PROT DHCP')
-                time.sleep(5)
-                self.print_lan_info()
-            except pyvisa.errors.VisaIOError:
-                logger.warning('Device should be connected to a network with DHCP')
+        try:
+            self._write(':LAN:PROT DHCP')
+            time.sleep(5)
+            self.print_lan_info()
+        except:
+            logger.warning('Device should be connected to a network with DHCP')
 
     def set_lan_static(self, gateway, ip):
-        if self.ip_:
-            logger.warning('To set LAN settings use USB connection')
-        else:
+        try:
             self._write(':LAN:PROT STATIC')
             self._write(f':LAN:IPAD {ip}')
             self._write(f':LAN:GAT {gateway}')
             self._write(f':LAN:DNS {gateway}')
             time.sleep(5)
             self.print_lan_info()
+        except:
+            logger.warning('reconnect with socket impl')
 
-    def get_waveform(self, channel):
-        return self.get_timedata(), self.get_ch_data(channel)
+    def _setup_ch_data(self, channel):
+        self._write(f':WAV:BEG CH{channel}')
+        self._write(f':WAV:RANG 0,{self.npoints}')
 
     def _time_len(self):
         self.timebase = self.get_timebase()
@@ -154,45 +146,6 @@ class Vds6102a:
 
     def _write(self, str_):
         self.vds.write(str_)
-
-    def _finder(self):
-        if self.pyvisa_bool:
-            return self._pyvisa_connection()
-        else:
-            return socket.SocketInstrument(self.ip_, port=8866, timeout=2)
-
-    def _pyvisa_connection(self):
-        rm = pyvisa.ResourceManager('@py')
-
-        if self.ip_:
-            try:
-                logger.info(f'connecting to IP {self.ip_}')
-                vds = rm.open_resource(f'TCPIP::{self.ip_}::INSTR')
-                vds.read_termination = '\n'
-                vds.write_termination = '\n'
-                vds.timeout = 2000  # ms
-                return vds
-            except:
-                logger.error('device not found')
-                sys.exit(1)
-
-        list_rm = rm.list_resources('?*')
-        if not list_rm:
-            logger.error('resource list is empty')
-            sys.exit(1)
-
-        for instr in list_rm:
-            if '4661' in instr:
-                logger.info('found device {}'.format(instr))
-                try:
-                    vds = rm.open_resource(instr)
-                    vds.read_termination = '\n'
-                    vds.write_termination = '\n'
-                    vds.timeout = 2000  # ms
-                    return vds
-                except ValueError:
-                    logger.error('device not found')
-                    sys.exit(1)
 
     @staticmethod
     def _convert_data(data, offset, scale):

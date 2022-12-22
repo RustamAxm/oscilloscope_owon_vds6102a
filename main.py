@@ -2,14 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-from vds6102a import Vds6102a
+from modules.Vds6102aPyVisaImpl import Vds6102aPyVisaImpl
+from modules.Vds6102aSocketImpl import Vds6102aSocketImpl
 
 
 def demo():
-    osc = Vds6102a(ip='172.17.27.17', pyvisa_bool=False)
+    osc = Vds6102aPyVisaImpl(ip='')
     # osc.set_lan_static(ip='192.168.10.3', gateway='192.168.10.1')
     # or
-    osc.set_lan_dhcp()
+    # osc.set_lan_dhcp()
+    osc.print_lan_info()
     osc.set_default()
     osc.set_ch_coupling(1, coupling='AC')
     osc.set_ch_coupling(2, coupling='AC')

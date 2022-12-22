@@ -6,7 +6,6 @@ It handles sending commands, receiving query results,
 reading/writing binary block data, and checking for errors.
 """
 import sys
-import time
 import warnings
 import socket
 import numpy as np
@@ -43,17 +42,6 @@ class SocketInstrument:
         # Connect to socket
         self.socket.connect((ipAddress, port))
 
-        # Get the instrument ID
-        self.instId = self.query('*idn?', errCheck=False)
-        print(self.instId)
-
-        # Enable verbose error checking of instrument supports this
-        # try:
-        #     self.write('syst:err:verbose 1', errCheck=False)
-        #     self.err_check()
-        # except SockInstError:
-        #     pass
-
     def disconnect(self):
         """DEPRECATED. THIS IS A PASS-THROUGH FUNCTION ONLY."""
 
@@ -80,10 +68,6 @@ class SocketInstrument:
 
         msg = '{}\r\n'.format(cmd)
         self.socket.send(msg.encode('latin_1'))
-        # msg = '{}\n*esr?'.format(cmd)
-        # ret = self.query(msg)
-        # if (int(ret) != 0):
-        #     raise SockInstError('esr non-zero: {}'.format(ret))
 
         if errCheck and self.globalErrCheck:
             print(f'WRITE - local: {errCheck}, global: {self.globalErrCheck}, cmd: {cmd}')
@@ -212,10 +196,9 @@ class SocketInstrument:
 
         # Send command/query
         self.write(cmd, errCheck=False)
-        time.sleep(1)
         # Read # character, raise exception if not present.
         try:
-            self.socket.settimeout(1)
+            self.socket.settimeout(self.timeout)
             if self.socket.recv(1) != b'#':
                 raise BinblockError('Data in buffer is not in binblock format.')
         except socket.timeout:
@@ -224,10 +207,6 @@ class SocketInstrument:
             self.socket.settimeout(self.timeout)
 
         # Extract header length and number of bytes in binblock.
-        # header = self.socket.recv(10).decode('utf-8')
-        # print(header)
-        # numBytes = int(header[1:])
-
         header = int(self.socket.recv(1).decode('latin_1'), 16)
         numBytes = int(self.socket.recv(header).decode('latin_1'))
 
@@ -249,18 +228,6 @@ class SocketInstrument:
             if debug:
                 print('numBytes: {}, bytesRecv: {}'.format(
                     numBytes, bytesRecv))
-
-        # Receive termination character.
-        # term = self.socket.recv(1)
-        term = b'\n'
-        if debug:
-            print('Term char: ', term)
-            print(rawData)
-        # If term char is incorrect or not present, raise exception.
-        if term != b'\n':
-            print('Term char: {}, rawData Length: {}'.format(
-                term, len(rawData)))
-            raise BinblockError('Data not terminated correctly.')
 
         if errCheck and self.globalErrCheck:
             print(f'BINBLOCKREAD - local: {errCheck}, global: {self.globalErrCheck}')
