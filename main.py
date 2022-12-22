@@ -7,6 +7,13 @@ from modules.Vds6102aSocketImpl import Vds6102aSocketImpl
 
 
 def demo():
+    """
+     Vds6102aPyVisaImpl use cases:
+     ip = '172.17.xxx.xxx'- if u know ip address
+     ip = '' - usb use case
+     Vds6102aSocketImpl use case:
+     ip = '172.17.xxx.xxx'- if u know ip address
+    """
     osc = Vds6102aPyVisaImpl(ip='')
     # osc.set_lan_static(ip='192.168.10.3', gateway='192.168.10.1')
     # or
